@@ -1,0 +1,21 @@
+{
+	"input": [
+		{
+			"type": "text",
+			"action": "add",
+			"args": {
+				"inputDir": "../out/ray/ipcidr"
+			}
+		}
+	],
+	"output": [
+		{
+			"type": "v2rayGeoIPDat",
+			"action": "output",
+			"args": {
+				"outputDir": "../out",
+				"outputName": "geoip.dat"
+			}
+		}
+	]
+}

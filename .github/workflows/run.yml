@@ -1,0 +1,144 @@
+name: Build rule-sets files
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *" # 6:00 AM UTC+3
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Europe/Moscow
+      MIHOMO_VER: "v1.19.30"
+      SING_BOX_VER: "1.14.0"
+    permissions:
+      contents: write
+    steps:
+      - name: Set variables
+        run: echo "BUILDTIME=$(date +'%Y-%m-%d %H:%M')" >> "$GITHUB_ENV"
+
+      - name: Checkout the current repo
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.1'
+
+      - name: Run generator
+        run: |
+          cd generator/
+          go build -o generator ./
+          ./generator -c ../rule-sets.yaml -o ../out
+          cd ..
+
+      - name: Upload to the ./release folder
+        run: |
+          mkdir -p release/
+
+      - name: Convert to .dat (IP)
+        run: |
+          git clone --depth 1 https://github.com/Loyalsoldier/geoip.git geoip-src/
+
+          cd geoip-src/
+          go build -o geoip ./
+          ./geoip convert -c ../geoip-config.json
+          cd ..
+
+          cp out/geoip.dat release/uwuip.dat
+
+      - name: Convert to .dat (Domain)
+        run: |
+          git clone --depth 1 https://github.com/v2fly/domain-list-community.git geosite-src/
+
+          cd geosite-src/
+          go build -o geosite ./
+          ./geosite --datapath=../out/ray/domain --outputname=geosite.dat --outputdir=../out
+          cd ..
+
+          cp out/geosite.dat release/uwusite.dat
+
+      - name: Convert to .mrs
+        run: |
+          curl -fsSL -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/${{ env.MIHOMO_VER }}/mihomo-linux-amd64-compatible-${{ env.MIHOMO_VER }}.gz"
+          gunzip mihomo.gz
+          chmod +x mihomo
+
+          mkdir -p meta/domain meta/ipcidr
+
+          for f in out/meta/domain/*.list; do
+            name=$(basename "$f" .list)
+            ./mihomo convert-ruleset domain text "$f" "meta/domain/${name}.mrs"
+          done
+
+          for f in out/meta/ipcidr/*.list; do
+            name=$(basename "$f" .list)
+            ./mihomo convert-ruleset ipcidr text "$f" "meta/ipcidr/${name}.mrs"
+          done
+
+      - name: Convert to .srs
+        run: |
+          curl -fsSL -o sing-box.tar.gz "https://github.com/SagerNet/sing-box/releases/download/v${{ env.SING_BOX_VER }}/sing-box-${{ env.SING_BOX_VER }}-linux-amd64.tar.gz"
+          tar -xf sing-box.tar.gz --strip-components=1
+          chmod +x sing-box
+
+          mkdir -p sing/domain sing/ipcidr
+
+          for f in out/sing/domain/*.json; do
+            name=$(basename "$f" .json)
+            ./sing-box rule-set compile --output "sing/domain/${name}.srs" "$f"
+          done
+
+          for f in out/sing/ipcidr/*.json; do
+            name=$(basename "$f" .json)
+            ./sing-box rule-set compile --output "sing/ipcidr/${name}.srs" "$f"
+          done
+
+
+      - name: Delete release if exist then create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --cleanup-tag -y || true
+          gh release create latest --title "Release ${{ env.BUILDTIME }}" \
+            release/uwuip.dat release/uwusite.dat
+
+      - name: Git push assets to "release" branch
+        run: |
+          cd release/ || exit 1
+          git init
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b release
+          git add .
+          git commit -m "Released on ${{ env.BUILDTIME }}"
+          git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git push -f -u origin release
+
+      - name: Git push assets to "meta" branch
+        run: |
+          cd meta/ || exit 1
+          git init
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b meta
+          git add .
+          git commit -m "Released on ${{ env.BUILDTIME }}"
+          git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git push -f -u origin meta
+
+      - name: Git push assets to "sing" branch
+        run: |
+          cd sing/ || exit 1
+          git init
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b sing
+          git add .
+          git commit -m "Released on ${{ env.BUILDTIME }}"
+          git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git push -f -u origin sing
