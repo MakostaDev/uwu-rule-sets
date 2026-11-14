@@ -3,7 +3,7 @@ name: Build rule-sets files
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 3 * * *" # 6:00 AM UTC+3
+    - cron: "0 0 * * *"
   push:
     branches:
       - main
@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TZ: Europe/Moscow
-      MIHOMO_VER: "v1.19.30"
-      SING_BOX_VER: "1.14.0"
+      MIHOMO_VER: "1.19.34"
+      SING_BOX_VER: "1.14.4"
     permissions:
       contents: write
     steps:
@@ -27,7 +27,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.3'
 
       - name: Run generator
         run: |
@@ -64,7 +64,7 @@ jobs:
 
       - name: Convert to .mrs
         run: |
-          curl -fsSL -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/${{ env.MIHOMO_VER }}/mihomo-linux-amd64-compatible-${{ env.MIHOMO_VER }}.gz"
+          curl -fsSL -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/v${{ env.MIHOMO_VER }}/mihomo-linux-amd64-compatible-v${{ env.MIHOMO_VER }}.gz"
           gunzip mihomo.gz
           chmod +x mihomo
 
@@ -97,7 +97,6 @@ jobs:
             name=$(basename "$f" .json)
             ./sing-box rule-set compile --output "sing/ipcidr/${name}.srs" "$f"
           done
-
 
       - name: Delete release if exist then create release
         env:
