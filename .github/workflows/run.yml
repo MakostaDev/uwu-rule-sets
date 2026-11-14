@@ -44,6 +44,30 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/Loyalsoldier/geoip.git geoip-src/
 
+          cat > geoip-config.json <<'EOF'
+          {
+            "input": [
+              {
+                "type": "text",
+                "action": "add",
+                "args": {
+                  "inputDir": "../out/ray/ipcidr"
+                }
+              }
+            ],
+            "output": [
+              {
+                "type": "v2rayGeoIPDat",
+                "action": "output",
+                "args": {
+                  "outputDir": "../out",
+                  "outputName": "geoip.dat"
+                }
+              }
+            ]
+          }
+          EOF
+
           cd geoip-src/
           go build -o geoip ./
           ./geoip convert -c ../geoip-config.json
